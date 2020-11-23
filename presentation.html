@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>Concepts &amp; Subsumption</title>
+<meta name="author" content="Ben Deane"/>
+<style type="text/css">
+.underline { text-decoration: underline; }
+</style>
+<link rel="stylesheet" href="../reveal.js/css/reveal.css"/>
+
+<link rel="stylesheet" href="../reveal.js/css/theme/blood.css" id="theme"/>
+
+<link rel="stylesheet" href="./presentation.css"/>
+
+<!-- If the query includes 'print-pdf', include the PDF print sheet -->
+<script>
+    if( window.location.search.match( /print-pdf/gi ) ) {
+        var link = document.createElement( 'link' );
+        link.rel = 'stylesheet';
+        link.type = 'text/css';
+        link.href = '../reveal.js/css/print/pdf.css';
+        document.getElementsByTagName( 'head' )[0].appendChild( link );
+    }
+</script>
+</head>
+<body>
+<div class="reveal">
+<div class="slides">
+<section id="sec-title-slide">
+<h2>Concepts &amp; Subsumption</h2><h3>A brief guide to constraining function overloads</h3><h3>Ben Deane / <a href=\"http://twitter.com/ben_deane\">@ben_deane</a></h3><h4>3rd December 2020</h4>
+</section>
+<script type="text/javascript" src="./presentation.js"></script>
+
+<section>
+<section id="slide-org3ffb879">
+<h2 id="org3ffb879">Concepts vs Type Traits</h2>
+<p>
+A <code>concept</code> is "morally equivalent" to a type trait. It's a predicate on a type.
+</p>
+
+<div class="org-src-container">
+
+<pre  class="src src-c++"><span class="linenr"> 1: </span><span style="color: #b58900; font-weight: bold;">template</span> <span style="color: #2aa198;">&lt;</span><span style="color: #b58900; font-weight: bold;">typename</span> <span style="color: #268bd2;">T</span><span style="color: #2aa198;">&gt;</span>
+<span class="linenr"> 2: </span><span style="color: #b58900; font-weight: bold;">using</span> <span style="color: #268bd2;">area_t</span> = <span style="color: #b58900; font-weight: bold;">decltype</span><span style="color: #2aa198;">(</span><span style="color: #859900;">std</span>::declval<span style="color: #b58900;">&lt;</span><span style="color: #268bd2;">T</span><span style="color: #b58900;">&gt;()</span>.area<span style="color: #b58900;">()</span><span style="color: #2aa198;">)</span>;
+<span class="linenr"> 3: </span>
+<span class="linenr"> 4: </span><span style="color: #b58900; font-weight: bold;">template</span> <span style="color: #2aa198;">&lt;</span><span style="color: #b58900; font-weight: bold;">typename</span> <span style="color: #268bd2;">T</span><span style="color: #2aa198;">&gt;</span>
+<span class="linenr"> 5: </span><span style="color: #b58900; font-weight: bold;">using</span> <span style="color: #268bd2;">has_area_t</span> = <span style="color: #859900;">std</span>::<span style="color: #859900;">experimental</span>::<span style="color: #268bd2;">is_detected</span><span style="color: #2aa198;">&lt;</span><span style="color: #268bd2;">area_t</span>, <span style="color: #268bd2;">T</span><span style="color: #2aa198;">&gt;</span>;
+<span class="linenr"> 6: </span>
+<span class="linenr"> 7: </span><span style="color: #b58900; font-weight: bold;">template</span> <span style="color: #2aa198;">&lt;</span><span style="color: #b58900; font-weight: bold;">typename</span> <span style="color: #268bd2;">T</span><span style="color: #2aa198;">&gt;</span>
+<span class="linenr"> 8: </span><span style="color: #b58900; font-weight: bold;">constexpr</span> <span style="color: #b58900; font-weight: bold;">auto</span> <span style="color: #cb4b16;">has_area_v</span> = <span style="color: #859900;">has_area_t</span><span style="color: #2aa198;">&lt;</span><span style="color: #268bd2;">T</span><span style="color: #2aa198;">&gt;</span>::value;
+<span class="linenr"> 9: </span>
+<span class="linenr">10: </span><span style="color: #b58900; font-weight: bold;">template</span> <span style="color: #2aa198;">&lt;</span><span style="color: #b58900; font-weight: bold;">typename</span> <span style="color: #268bd2;">T</span><span style="color: #2aa198;">&gt;</span>
+<span class="linenr">11: </span><span style="color: #268bd2;">concept</span> <span style="color: #cb4b16;">has_area</span> = <span style="color: #b58900; font-weight: bold;">requires</span> <span style="color: #2aa198;">(</span><span style="color: #268bd2;">T</span> <span style="color: #cb4b16;">t</span><span style="color: #2aa198;">)</span> <span style="color: #2aa198;">{</span>
+<span class="linenr">12: </span>  <span style="color: #b58900;">{</span> t.area<span style="color: #94BFF3;">()</span> <span style="color: #b58900;">}</span> -&gt; <span style="color: #859900;">std</span>::<span style="color: #268bd2;">same_as</span><span style="color: #b58900;">&lt;</span><span style="color: #859900;">std</span>::size_t<span style="color: #b58900;">&gt;</span>;
+<span class="linenr">13: </span><span style="color: #2aa198;">}</span>;
+</pre>
+</div>
+
+<aside class="notes">
+<p>
+This is the detection idiom from library fundamentals v2.
+It is now superseded by concepts in most cases.
+</p>
+
+<p>
+Note that the concept checks not just the syntactic validity of calling <code>area</code>
+but also the return value.
+</p>
+
+</aside>
+
+</section>
+</section>
+<section>
+<section id="slide-org2b8d291">
+<h2 id="org2b8d291">Concepts vs Type Traits</h2>
+<ul>
+<li>Type traits typically inherit from <code>std::true_type</code> or <code>std::false_type</code>.</li>
+<li>Type traits have a corresponding <code>constexpr bool</code> variable template.</li>
+<li>Concepts usually are not "hungarian".</li>
+
+</ul>
+
+<p>
+Concepts and type traits can be implemented in terms of each other:
+</p>
+
+<div class="org-src-container">
+
+<pre  class="src src-c++"><span class="linenr">1: </span><span style="color: #b58900; font-weight: bold;">template</span> <span style="color: #2aa198;">&lt;</span><span style="color: #b58900; font-weight: bold;">typename</span> <span style="color: #268bd2;">T</span><span style="color: #2aa198;">&gt;</span>
+<span class="linenr">2: </span><span style="color: #268bd2;">concept</span> <span style="color: #cb4b16;">has_area</span> = <span style="color: #268bd2;">has_area_v</span><span style="color: #2aa198;">&lt;</span><span style="color: #268bd2;">T</span><span style="color: #2aa198;">&gt;</span>;
+<span class="linenr">3: </span>
+<span class="linenr">4: </span><span style="color: #b58900; font-weight: bold;">template</span> <span style="color: #2aa198;">&lt;</span><span style="color: #b58900; font-weight: bold;">typename</span> <span style="color: #268bd2;">T</span><span style="color: #2aa198;">&gt;</span>
+<span class="linenr">5: </span><span style="color: #b58900; font-weight: bold;">using</span> <span style="color: #268bd2;">has_area_t</span> = <span style="color: #859900;">std</span>::<span style="color: #268bd2;">bool_constant</span><span style="color: #2aa198;">&lt;</span><span style="color: #268bd2;">has_area</span><span style="color: #b58900;">&lt;</span><span style="color: #268bd2;">T</span><span style="color: #b58900;">&gt;</span><span style="color: #2aa198;">&gt;</span>;
+<span class="linenr">6: </span>
+<span class="linenr">7: </span><span style="color: #b58900; font-weight: bold;">template</span> <span style="color: #2aa198;">&lt;</span><span style="color: #b58900; font-weight: bold;">typename</span> <span style="color: #268bd2;">T</span><span style="color: #2aa198;">&gt;</span>
+<span class="linenr">8: </span><span style="color: #b58900; font-weight: bold;">constexpr</span> <span style="color: #b58900; font-weight: bold;">auto</span> <span style="color: #cb4b16;">has_area_v</span> = <span style="color: #268bd2;">has_area</span><span style="color: #2aa198;">&lt;</span><span style="color: #268bd2;">T</span><span style="color: #2aa198;">&gt;</span>;
+</pre>
+</div>
+
+<aside class="notes">
+<p>
+You can <i>only</i> implement a concept with a <code>constexpr bool</code>. You can't directly
+use an object of type <code>std::true_type</code> or <code>std::false_type</code>, even though those types have
+implicit conversion to <code>bool</code>.
+</p>
+
+</aside>
+
+</section>
+</section>
+<section>
+<section id="slide-orgf1bab77">
+<h2 id="orgf1bab77">Concepts do more than type traits</h2>
+<ul>
+<li>Better error messages</li>
+<li>Faster compilation</li>
+<li>Much easier to express return type checks</li>
+<li>Can constrain non-template functions too (compare: <code>= delete</code>)</li>
+<li>Easier (?) to combine</li>
+
+</ul>
+
+<aside class="notes">
+<p>
+This last part is really what we're exploring here.
+</p>
+
+</aside>
+
+</section>
+</section>
+<section>
+<section id="slide-orgd133b86">
+<h2 id="orgd133b86">Constraining functions</h2>
+<p>
+Let's make some shape concepts to constrain our functions.
+</p>
+
+<div class="org-src-container">
+
+<pre  class="src src-c++"><span class="linenr"> 1: </span><span style="color: #b58900; font-weight: bold;">template</span> <span style="color: #2aa198;">&lt;</span><span style="color: #b58900; font-weight: bold;">typename</span> <span style="color: #268bd2;">T</span><span style="color: #2aa198;">&gt;</span>
+<span class="linenr"> 2: </span><span style="color: #268bd2;">concept</span> <span style="color: #cb4b16;">basic_shape</span> = <span style="color: #b58900; font-weight: bold;">requires</span> <span style="color: #2aa198;">(</span><span style="color: #268bd2;">T</span> <span style="color: #cb4b16;">t</span><span style="color: #2aa198;">)</span> <span style="color: #2aa198;">{</span>
+<span class="linenr"> 3: </span>  <span style="color: #b58900;">{</span> t.area<span style="color: #94BFF3;">()</span> <span style="color: #b58900;">}</span> -&gt; <span style="color: #859900;">std</span>::<span style="color: #268bd2;">same_as</span><span style="color: #b58900;">&lt;</span><span style="color: #859900;">std</span>::size_t<span style="color: #b58900;">&gt;</span>;
+<span class="linenr"> 4: </span><span style="color: #2aa198;">}</span>;
+<span class="linenr"> 5: </span>
+<span class="linenr"> 6: </span><span style="color: #b58900; font-weight: bold;">template</span> <span style="color: #2aa198;">&lt;</span><span style="color: #b58900; font-weight: bold;">typename</span> <span style="color: #268bd2;">T</span><span style="color: #2aa198;">&gt;</span>
+<span class="linenr"> 7: </span><span style="color: #268bd2;">concept</span> <span style="color: #cb4b16;">shape</span> = <span style="color: #b58900; font-weight: bold;">requires</span> <span style="color: #2aa198;">(</span><span style="color: #268bd2;">T</span> <span style="color: #cb4b16;">t</span><span style="color: #2aa198;">)</span> <span style="color: #2aa198;">{</span>
+<span class="linenr"> 8: </span>  <span style="color: #268bd2;">basic_shape</span><span style="color: #b58900;">&lt;</span><span style="color: #268bd2;">T</span><span style="color: #b58900;">&gt;</span>; <span style="color: #ff00ff;">// </span><span style="color: #ff00ff;">DRY</span>
+<span class="linenr"> 9: </span>  <span style="color: #b58900;">{</span> t.perimeter<span style="color: #94BFF3;">()</span> <span style="color: #b58900;">}</span> -&gt; <span style="color: #859900;">std</span>::<span style="color: #268bd2;">same_as</span><span style="color: #b58900;">&lt;</span><span style="color: #859900;">std</span>::size_t<span style="color: #b58900;">&gt;</span>;
+<span class="linenr">10: </span><span style="color: #2aa198;">}</span>;
+</pre>
+</div>
+
+<p>
+(Discussion of what makes a <i>good</i> concept is for another talk.)
+</p>
+
+</section>
+</section>
+<section>
+<section id="slide-org262f64f">
+<h2 id="org262f64f">Constraining functions</h2>
+<p>
+Here are some shape classes that variously fulfil our concepts.
+</p>
+
+<div class="org-src-container">
+
+<pre  class="src src-c++"><span class="linenr"> 1: </span><span style="color: #b58900; font-weight: bold;">struct</span> <span style="color: #268bd2;">rectangle</span> <span style="color: #2aa198;">{</span>
+<span class="linenr"> 2: </span>  <span style="color: #b58900; font-weight: bold;">auto</span> <span style="color: #2aa198;">area</span><span style="color: #b58900;">()</span> -&gt; <span style="color: #859900;">std</span>::<span style="color: #268bd2;">size_t</span>;
+<span class="linenr"> 3: </span>  <span style="color: #b58900; font-weight: bold;">auto</span> <span style="color: #2aa198;">perimeter</span><span style="color: #b58900;">()</span> -&gt; <span style="color: #859900;">std</span>::<span style="color: #268bd2;">size_t</span>;
+<span class="linenr"> 4: </span><span style="color: #2aa198;">}</span>;
+<span class="linenr"> 5: </span><span style="color: #b58900; font-weight: bold;">static_assert</span><span style="color: #2aa198;">(</span><span style="color: #268bd2;">basic_shape</span><span style="color: #b58900;">&lt;</span><span style="color: #268bd2;">rectangle</span><span style="color: #b58900;">&gt;</span><span style="color: #2aa198;">)</span>;
+<span class="linenr"> 6: </span><span style="color: #b58900; font-weight: bold;">static_assert</span><span style="color: #2aa198;">(</span><span style="color: #268bd2;">shape</span><span style="color: #b58900;">&lt;</span><span style="color: #268bd2;">rectangle</span><span style="color: #b58900;">&gt;</span><span style="color: #2aa198;">)</span>;
+<span class="linenr"> 7: </span>
+<span class="linenr"> 8: </span><span style="color: #b58900; font-weight: bold;">struct</span> <span style="color: #268bd2;">ellipse</span> <span style="color: #2aa198;">{</span>
+<span class="linenr"> 9: </span>  <span style="color: #b58900; font-weight: bold;">auto</span> <span style="color: #2aa198;">area</span><span style="color: #b58900;">()</span> -&gt; <span style="color: #859900;">std</span>::<span style="color: #268bd2;">size_t</span>;
+<span class="linenr">10: </span>  <span style="color: #ff00ff;">// </span><span style="color: #ff00ff;">don't know how to calculate perimeter</span>
+<span class="linenr">11: </span><span style="color: #2aa198;">}</span>;
+<span class="linenr">12: </span><span style="color: #b58900; font-weight: bold;">static_assert</span><span style="color: #2aa198;">(</span><span style="color: #268bd2;">basic_shape</span><span style="color: #b58900;">&lt;</span><span style="color: #268bd2;">ellipse</span><span style="color: #b58900;">&gt;</span><span style="color: #2aa198;">)</span>;
+<span class="linenr">13: </span><span style="color: #b58900; font-weight: bold;">static_assert</span><span style="color: #2aa198;">(</span><span style="color: #b58900; font-weight: bold;">not</span> <span style="color: #268bd2;">shape</span><span style="color: #b58900;">&lt;</span><span style="color: #268bd2;">ellipse</span><span style="color: #b58900;">&gt;</span><span style="color: #2aa198;">)</span>;
+</pre>
+</div>
+
+</section>
+</section>
+<section>
+<section id="slide-org8b93ed0">
+<h2 id="org8b93ed0">Constraining functions</h2>
+<p>
+Now we're all good to start constraining functions.
+</p>
+
+<div class="org-src-container">
+
+<pre  class="src src-c++"><span class="linenr"> 1: </span><span style="color: #b58900; font-weight: bold;">auto</span> <span style="color: #2aa198;">calc</span><span style="color: #2aa198;">(</span><span style="color: #268bd2;">shape</span> <span style="color: #b58900; font-weight: bold;">auto</span> <span style="color: #b58900; font-weight: bold;">const</span>&amp; <span style="color: #cb4b16;">s</span><span style="color: #2aa198;">)</span> -&gt; <span style="color: #268bd2;">void</span>;
+<span class="linenr"> 2: </span><span style="color: #b58900; font-weight: bold;">auto</span> <span style="color: #2aa198;">calc</span><span style="color: #2aa198;">(</span><span style="color: #268bd2;">basic_shape</span> <span style="color: #b58900; font-weight: bold;">auto</span> <span style="color: #b58900; font-weight: bold;">const</span>&amp; <span style="color: #cb4b16;">s</span><span style="color: #2aa198;">)</span> -&gt; <span style="color: #268bd2;">void</span>;
+<span class="linenr"> 3: </span>
+<span class="linenr"> 4: </span><span style="color: #268bd2;">int</span> <span style="color: #2aa198;">main</span><span style="color: #2aa198;">()</span> <span style="color: #2aa198;">{</span>
+<span class="linenr"> 5: </span>  <span style="color: #268bd2;">ellipse</span> <span style="color: #cb4b16;">e</span>;
+<span class="linenr"> 6: </span>  calc<span style="color: #b58900;">(</span>e<span style="color: #b58900;">)</span>; <span style="color: #ff00ff;">// </span><span style="color: #ff00ff;">calls calc at line 2</span>
+<span class="linenr"> 7: </span>
+<span class="linenr"> 8: </span>  <span style="color: #268bd2;">rectangle</span> <span style="color: #cb4b16;">r</span>;
+<span class="linenr"> 9: </span>  calc<span style="color: #b58900;">(</span>r<span style="color: #b58900;">)</span>; <span style="color: #ff00ff;">// </span><span style="color: #ff00ff;">ambiguous?</span>
+<span class="linenr">10: </span><span style="color: #2aa198;">}</span>
+</pre>
+</div>
+
+<div class="org-src-container">
+
+<pre  class="src src-sh">&lt;source&gt;:38:5: error: call to <span style="color: #D01A4E;">'calc'</span> <span style="color: #859900;">is</span> ambiguous
+    calc<span style="color: #2aa198;">(</span>r<span style="color: #2aa198;">)</span>;
+    ^~~~
+&lt;source&gt;:30:6: note: candidate <span style="color: #b58900; font-weight: bold;">function</span> <span style="color: #2aa198;">[</span>with s:auto = rectangle<span style="color: #2aa198;">]</span>
+auto calc<span style="color: #2aa198;">(</span>shape auto const&amp; s<span style="color: #2aa198;">)</span> -&gt; void;
+     ^
+&lt;source&gt;:31:6: note: candidate <span style="color: #b58900; font-weight: bold;">function</span> <span style="color: #2aa198;">[</span>with s:auto = rectangle<span style="color: #2aa198;">]</span>
+auto calc<span style="color: #2aa198;">(</span>basic_shape auto const&amp; s<span style="color: #2aa198;">)</span> -&gt; void;
+</pre>
+</div>
+
+</section>
+</section>
+<section>
+<section id="slide-org8efc235">
+<h2 id="org8efc235">Constraining functions</h2>
+<p>
+Why isn't the function that takes a <code>shape</code><br />
+more constrained than the function that takes a <code>basic_shape</code>?
+</p>
+
+<div class="org-src-container">
+
+<pre  class="src src-c++"><span class="linenr"> 1: </span><span style="color: #b58900; font-weight: bold;">template</span> <span style="color: #2aa198;">&lt;</span><span style="color: #b58900; font-weight: bold;">typename</span> <span style="color: #268bd2;">T</span><span style="color: #2aa198;">&gt;</span>
+<span class="linenr"> 2: </span><span style="color: #268bd2;">concept</span> <span style="color: #cb4b16;">basic_shape</span> = <span style="color: #b58900; font-weight: bold;">requires</span> <span style="color: #2aa198;">(</span><span style="color: #268bd2;">T</span> <span style="color: #cb4b16;">t</span><span style="color: #2aa198;">)</span> <span style="color: #2aa198;">{</span>
+<span class="linenr"> 3: </span>  <span style="color: #b58900;">{</span> t.area<span style="color: #94BFF3;">()</span> <span style="color: #b58900;">}</span> -&gt; <span style="color: #859900;">std</span>::<span style="color: #268bd2;">same_as</span><span style="color: #b58900;">&lt;</span><span style="color: #859900;">std</span>::size_t<span style="color: #b58900;">&gt;</span>;
+<span class="linenr"> 4: </span><span style="color: #2aa198;">}</span>;
+<span class="linenr"> 5: </span>
+<span class="linenr"> 6: </span><span style="color: #b58900; font-weight: bold;">template</span> <span style="color: #2aa198;">&lt;</span><span style="color: #b58900; font-weight: bold;">typename</span> <span style="color: #268bd2;">T</span><span style="color: #2aa198;">&gt;</span>
+<span class="linenr"> 7: </span><span style="color: #268bd2;">concept</span> <span style="color: #cb4b16;">shape</span> = <span style="color: #b58900; font-weight: bold;">requires</span> <span style="color: #2aa198;">(</span><span style="color: #268bd2;">T</span> <span style="color: #cb4b16;">t</span><span style="color: #2aa198;">)</span> <span style="color: #2aa198;">{</span>
+<span class="linenr"> 8: </span>  <span style="color: #268bd2;">basic_shape</span><span style="color: #b58900;">&lt;</span><span style="color: #268bd2;">T</span><span style="color: #b58900;">&gt;</span>; <span style="color: #ff00ff;">// </span><span style="color: #ff00ff;">DRY</span>
+<span class="linenr"> 9: </span>  <span style="color: #b58900;">{</span> t.perimeter<span style="color: #94BFF3;">()</span> <span style="color: #b58900;">}</span> -&gt; <span style="color: #859900;">std</span>::<span style="color: #268bd2;">same_as</span><span style="color: #b58900;">&lt;</span><span style="color: #859900;">std</span>::size_t<span style="color: #b58900;">&gt;</span>;
+<span class="linenr">10: </span><span style="color: #2aa198;">}</span>;
+<span class="linenr">11: </span>
+<span class="linenr">12: </span><span style="color: #b58900; font-weight: bold;">auto</span> <span style="color: #2aa198;">calc</span><span style="color: #2aa198;">(</span><span style="color: #268bd2;">shape</span> <span style="color: #b58900; font-weight: bold;">auto</span> <span style="color: #b58900; font-weight: bold;">const</span>&amp; <span style="color: #cb4b16;">s</span><span style="color: #2aa198;">)</span> -&gt; <span style="color: #268bd2;">void</span>;
+<span class="linenr">13: </span><span style="color: #b58900; font-weight: bold;">auto</span> <span style="color: #2aa198;">calc</span><span style="color: #2aa198;">(</span><span style="color: #268bd2;">basic_shape</span> <span style="color: #b58900; font-weight: bold;">auto</span> <span style="color: #b58900; font-weight: bold;">const</span>&amp; <span style="color: #cb4b16;">s</span><span style="color: #2aa198;">)</span> -&gt; <span style="color: #268bd2;">void</span>;
+</pre>
+</div>
+
+</section>
+</section>
+<section>
+<section id="slide-orgcfceaf3">
+<h2 id="orgcfceaf3">Concept subsumption</h2>
+<p>
+The answer is concept subsumption: how the compiler decides whether one concept
+is "more powerful/constraining" another.
+</p>
+
+<div class="org-src-container">
+
+<pre  class="src src-c++"><span class="linenr">1: </span><span style="color: #b58900; font-weight: bold;">auto</span> <span style="color: #2aa198;">calc</span><span style="color: #2aa198;">(</span><span style="color: #268bd2;">shape</span> <span style="color: #b58900; font-weight: bold;">auto</span> <span style="color: #b58900; font-weight: bold;">const</span>&amp; <span style="color: #cb4b16;">s</span><span style="color: #2aa198;">)</span> -&gt; <span style="color: #268bd2;">void</span>;
+<span class="linenr">2: </span><span style="color: #b58900; font-weight: bold;">auto</span> <span style="color: #2aa198;">calc</span><span style="color: #2aa198;">(</span><span style="color: #268bd2;">basic_shape</span> <span style="color: #b58900; font-weight: bold;">auto</span> <span style="color: #b58900; font-weight: bold;">const</span>&amp; <span style="color: #cb4b16;">s</span><span style="color: #2aa198;">)</span> -&gt; <span style="color: #268bd2;">void</span>;
+</pre>
+</div>
+
+<p>
+To consider one (concept-constrained) function more constrained than another,
+the concept(s) constraining function A must <i>subsume</i> the concept(s)
+constraining function B.
+</p>
+
+<p>
+What does that mean?
+</p>
+
+</section>
+</section>
+<section>
+<section id="slide-org5847d3c">
+<h2 id="org5847d3c">Concept subsumption</h2>
+<p>
+A constraint P <i>subsumes</i> a constraint Q iff the compiler can prove that P
+implies Q up to the identity of atomic constraints in P and Q.
+</p>
+
+<ul>
+<li>convert P to <i>disjunctive normal form</i> (OR of ANDs)</li>
+<li>convert Q to <i>conjunctive normal form</i> (AND of ORs)</li>
+<li>check: {clauses in P} subsume {clauses in Q}</li>
+
+</ul>
+
+<div class="org-src-container">
+
+<pre  class="src src-c++"><span class="linenr"> 1: </span><span style="color: #b58900; font-weight: bold;">template</span> <span style="color: #2aa198;">&lt;</span><span style="color: #b58900; font-weight: bold;">typename</span> <span style="color: #268bd2;">T</span><span style="color: #2aa198;">&gt;</span>
+<span class="linenr"> 2: </span><span style="color: #268bd2;">concept</span> <span style="color: #cb4b16;">basic_shape</span> = <span style="color: #b58900; font-weight: bold;">requires</span> <span style="color: #2aa198;">(</span><span style="color: #268bd2;">T</span> <span style="color: #cb4b16;">t</span><span style="color: #2aa198;">)</span> <span style="color: #2aa198;">{</span>
+<span class="linenr"> 3: </span>  <span style="color: #b58900;">{</span> t.area<span style="color: #94BFF3;">()</span> <span style="color: #b58900;">}</span> -&gt; <span style="color: #859900;">std</span>::<span style="color: #268bd2;">same_as</span><span style="color: #b58900;">&lt;</span><span style="color: #859900;">std</span>::size_t<span style="color: #b58900;">&gt;</span>;
+<span class="linenr"> 4: </span><span style="color: #2aa198;">}</span>;
+<span class="linenr"> 5: </span>
+<span class="linenr"> 6: </span><span style="color: #b58900; font-weight: bold;">template</span> <span style="color: #2aa198;">&lt;</span><span style="color: #b58900; font-weight: bold;">typename</span> <span style="color: #268bd2;">T</span><span style="color: #2aa198;">&gt;</span>
+<span class="linenr"> 7: </span><span style="color: #268bd2;">concept</span> <span style="color: #cb4b16;">shape</span> = <span style="color: #b58900; font-weight: bold;">requires</span> <span style="color: #2aa198;">(</span><span style="color: #268bd2;">T</span> <span style="color: #cb4b16;">t</span><span style="color: #2aa198;">)</span> <span style="color: #2aa198;">{</span>
+<span class="linenr"> 8: </span>  <span style="color: #268bd2;">basic_shape</span><span style="color: #b58900;">&lt;</span><span style="color: #268bd2;">T</span><span style="color: #b58900;">&gt;</span>; <span style="color: #ff00ff;">// </span><span style="color: #ff00ff;">DRY</span>
+<span class="linenr"> 9: </span>  <span style="color: #b58900;">{</span> t.perimeter<span style="color: #94BFF3;">()</span> <span style="color: #b58900;">}</span> -&gt; <span style="color: #859900;">std</span>::<span style="color: #268bd2;">same_as</span><span style="color: #b58900;">&lt;</span><span style="color: #859900;">std</span>::size_t<span style="color: #b58900;">&gt;</span>;
+<span class="linenr">10: </span><span style="color: #2aa198;">}</span>;
+</pre>
+</div>
+
+</section>
+</section>
+<section>
+<section id="slide-orgf74e285">
+<h2 id="orgf74e285">Concept subsumption rules</h2>
+<p>
+Basically, it works how you would expect:
+</p>
+
+<ul>
+<li><code>A and B</code> subsumes <code>A</code></li>
+<li><code>A</code> subsumes <code>A</code> (i.e. every concept subsumes itself)</li>
+<li><code>A</code> subsumes <code>A or B</code></li>
+
+</ul>
+
+<p>
+A concept that subsumes another counts as more constrained.
+</p>
+
+</section>
+</section>
+<section>
+<section id="slide-org8c8cc8e">
+<h2 id="org8c8cc8e">Concept subsumption rules</h2>
+<p>
+However, look out for the following gotchas:
+</p>
+
+<p>
+<i>Only</i> concepts can be subsumed<br />
+(you can use a <code>constexpr bool</code> as a clause in your concept,<br />
+but it can't take part in subsumption).
+</p>
+
+<p>
+Only <i>atomic</i> constraints are considered<br />
+(the compiler can't look inside your multi-part constraint).
+</p>
+
+</section>
+</section>
+<section>
+<section id="slide-orgde13b0a">
+<h2 id="orgde13b0a">Concept subsumption</h2>
+<div class="org-src-container">
+
+<pre  class="src src-c++"><span class="linenr"> 1: </span><span style="color: #b58900; font-weight: bold;">template</span> <span style="color: #2aa198;">&lt;</span><span style="color: #b58900; font-weight: bold;">typename</span> <span style="color: #268bd2;">T</span><span style="color: #2aa198;">&gt;</span>
+<span class="linenr"> 2: </span><span style="color: #268bd2;">concept</span> <span style="color: #cb4b16;">basic_shape</span> = <span style="color: #b58900; font-weight: bold;">requires</span> <span style="color: #2aa198;">(</span><span style="color: #268bd2;">T</span> <span style="color: #cb4b16;">t</span><span style="color: #2aa198;">)</span> <span style="color: #2aa198;">{</span>
+<span class="linenr"> 3: </span>  <span style="color: #b58900;">{</span> t.area<span style="color: #94BFF3;">()</span> <span style="color: #b58900;">}</span> -&gt; <span style="color: #859900;">std</span>::<span style="color: #268bd2;">same_as</span><span style="color: #b58900;">&lt;</span><span style="color: #859900;">std</span>::size_t<span style="color: #b58900;">&gt;</span>;
+<span class="linenr"> 4: </span><span style="color: #2aa198;">}</span>;
+<span class="linenr"> 5: </span>
+<span class="linenr"> 6: </span><span style="color: #b58900; font-weight: bold;">template</span> <span style="color: #2aa198;">&lt;</span><span style="color: #b58900; font-weight: bold;">typename</span> <span style="color: #268bd2;">T</span><span style="color: #2aa198;">&gt;</span>
+<span class="linenr"> 7: </span><span style="color: #268bd2;">concept</span> <span style="color: #cb4b16;">shape</span> =
+<span class="linenr"> 8: </span>  <span style="color: #268bd2;">basic_shape</span><span style="color: #2aa198;">&lt;</span><span style="color: #268bd2;">T</span><span style="color: #2aa198;">&gt;</span>     <span style="color: #ff00ff;">// </span><span style="color: #ff00ff;">atomic constraint #1</span>
+<span class="linenr"> 9: </span>  <span style="color: #b58900; font-weight: bold;">and</span>
+<span class="linenr">10: </span>  <span style="color: #b58900; font-weight: bold;">requires</span> <span style="color: #2aa198;">(</span><span style="color: #268bd2;">T</span> <span style="color: #cb4b16;">t</span><span style="color: #2aa198;">)</span> <span style="color: #2aa198;">{</span>   <span style="color: #ff00ff;">// </span><span style="color: #ff00ff;">atomic constraint #2</span>
+<span class="linenr">11: </span>    <span style="color: #b58900;">{</span> t.perimeter<span style="color: #94BFF3;">()</span> <span style="color: #b58900;">}</span> -&gt; <span style="color: #859900;">std</span>::<span style="color: #268bd2;">same_as</span><span style="color: #b58900;">&lt;</span><span style="color: #859900;">std</span>::size_t<span style="color: #b58900;">&gt;</span>;
+<span class="linenr">12: </span>  <span style="color: #2aa198;">}</span>;
+</pre>
+</div>
+
+<p>
+Now it is clearer why <code>shape</code> subsumes <code>basic_shape</code> (and why it didn't
+originally).
+</p>
+
+</section>
+</section>
+<section>
+<section id="slide-org827268b">
+<h2 id="org827268b">Variadic templates</h2>
+<div class="org-src-container">
+
+<pre  class="src src-c++"><span class="linenr"> 1: </span><span style="color: #b58900; font-weight: bold;">auto</span> <span style="color: #2aa198;">variadic_calc</span><span style="color: #2aa198;">(</span><span style="color: #268bd2;">shape</span> <span style="color: #b58900; font-weight: bold;">auto</span> <span style="color: #b58900; font-weight: bold;">const</span>&amp;<span style="color: #2aa198;">...</span> <span style="color: #cb4b16;">ss</span><span style="color: #2aa198;">)</span> -&gt; <span style="color: #268bd2;">void</span>;
+<span class="linenr"> 2: </span><span style="color: #b58900; font-weight: bold;">auto</span> <span style="color: #2aa198;">variadic_calc</span><span style="color: #2aa198;">(</span><span style="color: #268bd2;">basic_shape</span> <span style="color: #b58900; font-weight: bold;">auto</span> <span style="color: #b58900; font-weight: bold;">const</span>&amp;<span style="color: #2aa198;">...</span> <span style="color: #cb4b16;">ss</span><span style="color: #2aa198;">)</span> -&gt; <span style="color: #268bd2;">void</span>;
+<span class="linenr"> 3: </span>
+<span class="linenr"> 4: </span><span style="color: #268bd2;">int</span> <span style="color: #2aa198;">main</span><span style="color: #2aa198;">()</span> <span style="color: #2aa198;">{</span>
+<span class="linenr"> 5: </span>  <span style="color: #268bd2;">ellipse</span> <span style="color: #cb4b16;">e</span>;
+<span class="linenr"> 6: </span>  calc<span style="color: #b58900;">(</span>e<span style="color: #b58900;">)</span>; <span style="color: #ff00ff;">// </span><span style="color: #ff00ff;">calls variadic_calc at line 2</span>
+<span class="linenr"> 7: </span>
+<span class="linenr"> 8: </span>  <span style="color: #268bd2;">rectangle</span> <span style="color: #cb4b16;">r</span>;
+<span class="linenr"> 9: </span>  calc<span style="color: #b58900;">(</span>r<span style="color: #b58900;">)</span>; <span style="color: #ff00ff;">// </span><span style="color: #ff00ff;">ambiguous again?</span>
+<span class="linenr">10: </span><span style="color: #2aa198;">}</span>
+</pre>
+</div>
+
+<p>
+Oh no! What happened?
+</p>
+
+</section>
+</section>
+<section>
+<section id="slide-org6be7e7d">
+<h2 id="org6be7e7d">Variadic templates</h2>
+<div class="org-src-container">
+
+<pre  class="src src-c++"><span class="linenr">1: </span><span style="color: #b58900; font-weight: bold;">auto</span> <span style="color: #2aa198;">variadic_calc</span><span style="color: #2aa198;">(</span><span style="color: #268bd2;">shape</span> <span style="color: #b58900; font-weight: bold;">auto</span> <span style="color: #b58900; font-weight: bold;">const</span>&amp;<span style="color: #2aa198;">...</span> <span style="color: #cb4b16;">ss</span><span style="color: #2aa198;">)</span> -&gt; <span style="color: #268bd2;">void</span>;
+<span class="linenr">2: </span><span style="color: #b58900; font-weight: bold;">auto</span> <span style="color: #2aa198;">variadic_calc</span><span style="color: #2aa198;">(</span><span style="color: #268bd2;">basic_shape</span> <span style="color: #b58900; font-weight: bold;">auto</span> <span style="color: #b58900; font-weight: bold;">const</span>&amp;<span style="color: #2aa198;">...</span> <span style="color: #cb4b16;">ss</span><span style="color: #2aa198;">)</span> -&gt; <span style="color: #268bd2;">void</span>;
+</pre>
+</div>
+
+<p>
+is equivalent to
+</p>
+
+<div class="org-src-container">
+
+<pre  class="src src-c++"><span class="linenr">1: </span><span style="color: #b58900; font-weight: bold;">template</span> <span style="color: #2aa198;">&lt;</span><span style="color: #b58900; font-weight: bold;">typename</span><span style="color: #2aa198;">...</span> <span style="color: #268bd2;">Ts</span><span style="color: #2aa198;">&gt;</span>
+<span class="linenr">2: </span><span style="color: #b58900; font-weight: bold;">auto</span> <span style="color: #2aa198;">variadic_calc</span><span style="color: #2aa198;">(</span><span style="color: #b58900; font-weight: bold;">const</span> <span style="color: #268bd2;">Ts</span>&amp;<span style="color: #2aa198;">...</span> <span style="color: #cb4b16;">ss</span><span style="color: #2aa198;">)</span> -&gt; <span style="color: #268bd2;">void</span> <span style="color: #b58900; font-weight: bold;">requires</span> <span style="color: #2aa198;">(</span><span style="color: #268bd2;">shape</span><span style="color: #b58900;">&lt;</span><span style="color: #268bd2;">Ts</span><span style="color: #b58900;">&gt;</span> <span style="color: #b58900; font-weight: bold;">and</span> <span style="color: #2aa198;">...</span><span style="color: #2aa198;">)</span>;
+<span class="linenr">3: </span><span style="color: #b58900; font-weight: bold;">template</span> <span style="color: #2aa198;">&lt;</span><span style="color: #b58900; font-weight: bold;">typename</span><span style="color: #2aa198;">...</span> <span style="color: #268bd2;">Ts</span><span style="color: #2aa198;">&gt;</span>
+<span class="linenr">4: </span><span style="color: #b58900; font-weight: bold;">auto</span> <span style="color: #2aa198;">variadic_calc</span><span style="color: #2aa198;">(</span><span style="color: #b58900; font-weight: bold;">const</span> <span style="color: #268bd2;">Ts</span>&amp;<span style="color: #2aa198;">...</span> <span style="color: #cb4b16;">ss</span><span style="color: #2aa198;">)</span> -&gt; <span style="color: #268bd2;">void</span> <span style="color: #b58900; font-weight: bold;">requires</span> <span style="color: #2aa198;">(</span><span style="color: #268bd2;">basic_shape</span><span style="color: #b58900;">&lt;</span><span style="color: #268bd2;">Ts</span><span style="color: #b58900;">&gt;</span> <span style="color: #b58900; font-weight: bold;">and</span> <span style="color: #2aa198;">...</span><span style="color: #2aa198;">)</span>;
+</pre>
+</div>
+
+<p>
+And fold expressions are treated as atomic constraints!
+</p>
+
+<p>
+The compiler can't look inside them, so<br />
+<code>requires (shape&lt;Ts&gt; and ...)</code> <i>can't subsume</i> <code>requires (basic_shape&lt;Ts&gt; and ...)</code>
+</p>
+
+</section>
+</section>
+<section>
+<section id="slide-orge1e8e9c">
+<h2 id="orge1e8e9c">Workaround</h2>
+<p>
+The only way (I know) to work around this is to make the concept itself variadic<br />
+<i>and</i> manually write the <code>requires</code> clauses.
+</p>
+
+<div class="org-src-container">
+
+<pre  class="src src-c++"><span class="linenr"> 1: </span><span style="color: #b58900; font-weight: bold;">template</span> <span style="color: #2aa198;">&lt;</span><span style="color: #b58900; font-weight: bold;">typename</span><span style="color: #2aa198;">...</span> <span style="color: #268bd2;">Ts</span><span style="color: #2aa198;">&gt;</span>
+<span class="linenr"> 2: </span><span style="color: #268bd2;">concept</span> <span style="color: #cb4b16;">basic_shape</span> = <span style="color: #2aa198;">(</span><span style="color: #b58900; font-weight: bold;">requires</span> <span style="color: #b58900;">(</span><span style="color: #268bd2;">Ts</span> <span style="color: #cb4b16;">t</span><span style="color: #b58900;">)</span> <span style="color: #b58900;">{</span>
+<span class="linenr"> 3: </span>  <span style="color: #94BFF3;">{</span> t.area<span style="color: #dc322f;">()</span> <span style="color: #94BFF3;">}</span> -&gt; <span style="color: #859900;">std</span>::<span style="color: #268bd2;">same_as</span><span style="color: #94BFF3;">&lt;</span><span style="color: #859900;">std</span>::size_t<span style="color: #94BFF3;">&gt;</span>;
+<span class="linenr"> 4: </span><span style="color: #b58900;">}</span> <span style="color: #b58900; font-weight: bold;">and</span> <span style="color: #2aa198;">...</span><span style="color: #2aa198;">)</span>;
+<span class="linenr"> 5: </span>
+<span class="linenr"> 6: </span><span style="color: #b58900; font-weight: bold;">template</span> <span style="color: #2aa198;">&lt;</span><span style="color: #b58900; font-weight: bold;">typename</span><span style="color: #2aa198;">...</span> <span style="color: #268bd2;">Ts</span><span style="color: #2aa198;">&gt;</span>
+<span class="linenr"> 7: </span><span style="color: #268bd2;">concept</span> <span style="color: #cb4b16;">shape</span> =
+<span class="linenr"> 8: </span>  <span style="color: #268bd2;">basic_shape</span><span style="color: #2aa198;">&lt;</span><span style="color: #268bd2;">Ts</span><span style="color: #2aa198;">...</span><span style="color: #2aa198;">&gt;</span>   <span style="color: #ff00ff;">// </span><span style="color: #ff00ff;">atomic constraint #1</span>
+<span class="linenr"> 9: </span>  <span style="color: #b58900; font-weight: bold;">and</span>
+<span class="linenr">10: </span>  <span style="color: #2aa198;">(</span><span style="color: #b58900; font-weight: bold;">requires</span> <span style="color: #b58900;">(</span><span style="color: #268bd2;">Ts</span> <span style="color: #cb4b16;">t</span><span style="color: #b58900;">)</span> <span style="color: #b58900;">{</span>   <span style="color: #ff00ff;">// </span><span style="color: #ff00ff;">atomic constraint #2</span>
+<span class="linenr">11: </span>    <span style="color: #94BFF3;">{</span> t.perimeter<span style="color: #dc322f;">()</span> <span style="color: #94BFF3;">}</span> -&gt; <span style="color: #859900;">std</span>::<span style="color: #268bd2;">same_as</span><span style="color: #94BFF3;">&lt;</span><span style="color: #859900;">std</span>::size_t<span style="color: #94BFF3;">&gt;</span>;
+<span class="linenr">12: </span>  <span style="color: #b58900;">}</span> <span style="color: #b58900; font-weight: bold;">and</span> <span style="color: #2aa198;">...</span><span style="color: #2aa198;">)</span>;
+</pre>
+</div>
+
+<div class="org-src-container">
+
+<pre  class="src src-c++"><span class="linenr">1: </span><span style="color: #b58900; font-weight: bold;">template</span> <span style="color: #2aa198;">&lt;</span><span style="color: #b58900; font-weight: bold;">typename</span><span style="color: #2aa198;">...</span> <span style="color: #268bd2;">Ts</span><span style="color: #2aa198;">&gt;</span>
+<span class="linenr">2: </span><span style="color: #b58900; font-weight: bold;">auto</span> <span style="color: #2aa198;">variadic_calc</span><span style="color: #2aa198;">(</span><span style="color: #b58900; font-weight: bold;">const</span> <span style="color: #268bd2;">Ts</span>&amp;<span style="color: #2aa198;">...</span> <span style="color: #cb4b16;">ss</span><span style="color: #2aa198;">)</span> -&gt; <span style="color: #268bd2;">void</span> <span style="color: #b58900; font-weight: bold;">requires</span> <span style="color: #268bd2;">shape</span><span style="color: #2aa198;">&lt;</span><span style="color: #268bd2;">Ts</span><span style="color: #2aa198;">...</span><span style="color: #2aa198;">&gt;</span>;
+<span class="linenr">3: </span><span style="color: #b58900; font-weight: bold;">template</span> <span style="color: #2aa198;">&lt;</span><span style="color: #b58900; font-weight: bold;">typename</span><span style="color: #2aa198;">...</span> <span style="color: #268bd2;">Ts</span><span style="color: #2aa198;">&gt;</span>
+<span class="linenr">4: </span><span style="color: #b58900; font-weight: bold;">auto</span> <span style="color: #2aa198;">variadic_calc</span><span style="color: #2aa198;">(</span><span style="color: #b58900; font-weight: bold;">const</span> <span style="color: #268bd2;">Ts</span>&amp;<span style="color: #2aa198;">...</span> <span style="color: #cb4b16;">ss</span><span style="color: #2aa198;">)</span> -&gt; <span style="color: #268bd2;">void</span> <span style="color: #b58900; font-weight: bold;">requires</span> <span style="color: #268bd2;">basic_shape</span><span style="color: #2aa198;">&lt;</span><span style="color: #268bd2;">Ts</span><span style="color: #2aa198;">...</span><span style="color: #2aa198;">&gt;</span>;
+</pre>
+</div>
+
+</section>
+</section>
+<section>
+<section id="slide-org6d9472a">
+<h2 id="org6d9472a">Rules of thumb</h2>
+<ul>
+<li>Prefer to use concepts instead of variable templates.</li>
+<li>When building up concepts, combine concepts "at the top level".</li>
+<li>Be careful with variadic functions&#x2026;</li>
+
+</ul>
+
+<p>
+As with everything in C++:
+</p>
+
+<ul>
+<li>Use concepts: they're awesome compared to the other options</li>
+<li>They have some sharp edges</li>
+
+</ul>
+</section>
+</section>
+</div>
+</div>
+<script src="../reveal.js/js/reveal.js"></script>
+<script>
+// Full list of configuration options available here:
+// https://github.com/hakimel/reveal.js#configuration
+Reveal.initialize({
+
+controls: false,
+progress: false,
+history: false,
+center: true,
+slideNumber: 'c/t',
+rollingLinks: false,
+keyboard: true,
+mouseWheel: false,
+fragmentInURL: false,
+hashOneBasedIndex: false,
+pdfSeparateFragments: true,
+
+overview: true,
+width: 1600,
+height: 900,
+margin: 0.10,
+minScale: 0.50,
+maxScale: 2.50,
+
+theme: Reveal.getQueryHash().theme, // available themes are in /css/theme
+transition: Reveal.getQueryHash().transition || 'none', // see README of reveal.js for options
+transitionSpeed: 'default',
+
+// Optional libraries used to extend reveal.js
+dependencies: [
+ { src: '../reveal.js/plugin/markdown/marked.js', condition: function() { return !!document.querySelector( '[data-markdown]' ); } },
+ { src: '../reveal.js/plugin/markdown/markdown.js', condition: function() { return !!document.querySelector( '[data-markdown]' ); } },
+ { src: '../reveal.js/plugin/notes/notes.js', async: true, condition: function() { return !!document.body.classList; } },
+ { src: '../reveal.js/plugin/search/search.js', async: true, condition: function() { return !!document.body.classList; } },
+ { src: '../reveal.js/plugin/zoom-js/zoom.js', async: true, condition: function() { return !!document.body.classList; } }]
+
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,334 @@
+#    -*- mode: org -*-
+#+OPTIONS: reveal_center:t reveal_progress:nil reveal_history:nil reveal_control:nil
+#+OPTIONS: reveal_mathjax:t reveal_rolling_links:nil reveal_keyboard:t reveal_overview:t num:nil
+#+OPTIONS: reveal_width:1600 reveal_height:900
+#+OPTIONS: toc:nil <:nil timestamp:nil email:t reveal_slide_number:"c/t"
+#+REVEAL_MARGIN: 0.1
+#+REVEAL_MIN_SCALE: 0.5
+#+REVEAL_MAX_SCALE: 2.5
+#+REVEAL_TRANS: none
+#+REVEAL_THEME: blood
+#+REVEAL_HLEVEL: 1
+#+REVEAL_EXTRA_CSS: ./presentation.css
+#+REVEAL_ROOT: ../reveal.js/
+
+#+TITLE: Concepts & Subsumption
+#+AUTHOR: Ben Deane
+#+DATE: 3rd December 2020
+
+#+REVEAL_HTML: <script type="text/javascript" src="./presentation.js"></script>
+
+#+REVEAL_TITLE_SLIDE: <h2>%t</h2><h3>A brief guide to constraining function overloads</h3><h3>%a / <a href=\"http://twitter.com/ben_deane\">@ben_deane</a></h3><h4>%d</h4>
+
+* Settings                                                         :noexport:
+#+begin_source elisp
+(set-face-foreground 'font-lock-comment-face "magenta")
+(set-face-foreground 'font-lock-comment-delimiter-face "magenta")
+#+end_source
+
+* Concepts vs Type Traits
+
+A ~concept~ is "morally equivalent" to a type trait. It's a predicate on a type.
+
+#+begin_src c++ -n
+template <typename T>
+using area_t = decltype(std::declval<T>().area());
+
+template <typename T>
+using has_area_t = std::experimental::is_detected<area_t, T>;
+
+template <typename T>
+constexpr auto has_area_v = has_area_t<T>::value;
+
+template <typename T>
+concept has_area = requires (T t) {
+  { t.area() } -> std::same_as<std::size_t>;
+};
+#+end_src
+
+#+begin_notes
+This is the detection idiom from library fundamentals v2.
+It is now superseded by concepts in most cases.
+
+Note that the concept checks not just the syntactic validity of calling ~area~
+but also the return value.
+#+end_notes
+
+* Concepts vs Type Traits
+
+ - Type traits typically inherit from ~std::true_type~ or ~std::false_type~.
+ - Type traits have a corresponding ~constexpr bool~ variable template.
+ - Concepts usually are not "hungarian".
+
+Concepts and type traits can be implemented in terms of each other:
+
+#+begin_src c++ -n
+template <typename T>
+concept has_area = has_area_v<T>;
+
+template <typename T>
+using has_area_t = std::bool_constant<has_area<T>>;
+
+template <typename T>
+constexpr auto has_area_v = has_area<T>;
+#+end_src
+
+#+begin_notes
+You can /only/ implement a concept with a ~constexpr bool~. You can't directly
+use an object of type ~std::true_type~ or ~std::false_type~, even though those types have
+implicit conversion to ~bool~.
+#+end_notes
+
+* Concepts do more than type traits
+
+ - Better error messages
+ - Faster compilation
+ - Much easier to express return type checks
+ - Can constrain non-template functions too (compare: ~= delete~)
+ - Easier (?) to combine
+
+#+begin_notes
+This last part is really what we're exploring here.
+#+end_notes
+
+* Constraining functions
+
+Let's make some shape concepts to constrain our functions.
+
+#+begin_src c++ -n
+template <typename T>
+concept basic_shape = requires (T t) {
+  { t.area() } -> std::same_as<std::size_t>;
+};
+
+template <typename T>
+concept shape = requires (T t) {
+  basic_shape<T>; // DRY
+  { t.perimeter() } -> std::same_as<std::size_t>;
+};
+#+end_src
+
+(Discussion of what makes a /good/ concept is for another talk.)
+
+* Constraining functions
+
+Here are some shape classes that variously fulfil our concepts.
+
+#+begin_src c++ -n
+struct rectangle {
+  auto area() -> std::size_t;
+  auto perimeter() -> std::size_t;
+};
+static_assert(basic_shape<rectangle>);
+static_assert(shape<rectangle>);
+
+struct ellipse {
+  auto area() -> std::size_t;
+  // don't know how to calculate perimeter
+};
+static_assert(basic_shape<ellipse>);
+static_assert(not shape<ellipse>);
+#+end_src
+
+* Constraining functions
+
+Now we're all good to start constraining functions.
+
+#+begin_src c++ -n
+auto calc(shape auto const& s) -> void;
+auto calc(basic_shape auto const& s) -> void;
+
+int main() {
+  ellipse e;
+  calc(e); // calls calc at line 2
+
+  rectangle r;
+  calc(r); // ambiguous?
+}
+#+end_src
+
+#+begin_src sh
+<source>:38:5: error: call to 'calc' is ambiguous
+    calc(r);
+    ^~~~
+<source>:30:6: note: candidate function [with s:auto = rectangle]
+auto calc(shape auto const& s) -> void;
+     ^
+<source>:31:6: note: candidate function [with s:auto = rectangle]
+auto calc(basic_shape auto const& s) -> void;
+#+end_src
+
+* Constraining functions
+
+Why isn't the function that takes a ~shape~\\
+more constrained than the function that takes a ~basic_shape~?
+
+#+begin_src c++ -n
+template <typename T>
+concept basic_shape = requires (T t) {
+  { t.area() } -> std::same_as<std::size_t>;
+};
+
+template <typename T>
+concept shape = requires (T t) {
+  basic_shape<T>; // DRY
+  { t.perimeter() } -> std::same_as<std::size_t>;
+};
+
+auto calc(shape auto const& s) -> void;
+auto calc(basic_shape auto const& s) -> void;
+#+end_src
+
+* Concept subsumption
+
+The answer is concept subsumption: how the compiler decides whether one concept
+is "more powerful/constraining" another.
+
+#+begin_src c++ -n
+auto calc(shape auto const& s) -> void;
+auto calc(basic_shape auto const& s) -> void;
+#+end_src
+
+To consider one (concept-constrained) function more constrained than another,
+the concept(s) constraining function A must /subsume/ the concept(s)
+constraining function B.
+
+What does that mean?
+
+* Concept subsumption
+
+A constraint P /subsumes/ a constraint Q iff the compiler can prove that P
+implies Q up to the identity of atomic constraints in P and Q.
+
+ - convert P to /disjunctive normal form/ (OR of ANDs)
+ - convert Q to /conjunctive normal form/ (AND of ORs)
+ - check: {clauses in P} subsume {clauses in Q}
+
+#+begin_src c++ -n
+template <typename T>
+concept basic_shape = requires (T t) {
+  { t.area() } -> std::same_as<std::size_t>;
+};
+
+template <typename T>
+concept shape = requires (T t) {
+  basic_shape<T>; // DRY
+  { t.perimeter() } -> std::same_as<std::size_t>;
+};
+#+end_src
+
+* Concept subsumption rules
+
+Basically, it works how you would expect:
+
+ - ~A and B~ subsumes ~A~
+ - ~A~ subsumes ~A~ (i.e. every concept subsumes itself)
+ - ~A~ subsumes ~A or B~
+
+A concept that subsumes another counts as more constrained.
+
+* Concept subsumption rules
+
+However, look out for the following gotchas:
+
+/Only/ concepts can be subsumed\\
+(you can use a ~constexpr bool~ as a clause in your concept,\\
+but it can't take part in subsumption).
+
+Only /atomic/ constraints are considered\\
+(the compiler can't look inside your multi-part constraint).
+
+* Concept subsumption
+
+#+begin_src c++ -n
+template <typename T>
+concept basic_shape = requires (T t) {
+  { t.area() } -> std::same_as<std::size_t>;
+};
+
+template <typename T>
+concept shape =
+  basic_shape<T>     // atomic constraint #1
+  and
+  requires (T t) {   // atomic constraint #2
+    { t.perimeter() } -> std::same_as<std::size_t>;
+  };
+#+end_src
+
+Now it is clearer why ~shape~ subsumes ~basic_shape~ (and why it didn't
+originally).
+
+* Variadic templates
+
+#+begin_src c++ -n
+auto variadic_calc(shape auto const&... ss) -> void;
+auto variadic_calc(basic_shape auto const&... ss) -> void;
+
+int main() {
+  ellipse e;
+  calc(e); // calls variadic_calc at line 2
+
+  rectangle r;
+  calc(r); // ambiguous again?
+}
+#+end_src
+
+Oh no! What happened?
+
+* Variadic templates
+
+#+begin_src c++ -n
+auto variadic_calc(shape auto const&... ss) -> void;
+auto variadic_calc(basic_shape auto const&... ss) -> void;
+#+end_src
+
+is equivalent to
+
+#+begin_src c++ -n
+template <typename... Ts>
+auto variadic_calc(const Ts&... ss) -> void requires (shape<Ts> and ...);
+template <typename... Ts>
+auto variadic_calc(const Ts&... ss) -> void requires (basic_shape<Ts> and ...);
+#+end_src
+
+And fold expressions are treated as atomic constraints!
+
+The compiler can't look inside them, so\\
+~requires (shape<Ts> and ...)~ /can't subsume/ ~requires (basic_shape<Ts> and ...)~
+
+* Workaround
+The only way (I know) to work around this is to make the concept itself variadic\\
+/and/ manually write the ~requires~ clauses.
+
+#+begin_src c++ -n
+template <typename... Ts>
+concept basic_shape = (requires (Ts t) {
+  { t.area() } -> std::same_as<std::size_t>;
+} and ...);
+
+template <typename... Ts>
+concept shape =
+  basic_shape<Ts...>   // atomic constraint #1
+  and
+  (requires (Ts t) {   // atomic constraint #2
+    { t.perimeter() } -> std::same_as<std::size_t>;
+  } and ...);
+#+end_src
+
+#+begin_src c++ -n
+template <typename... Ts>
+auto variadic_calc(const Ts&... ss) -> void requires shape<Ts...>;
+template <typename... Ts>
+auto variadic_calc(const Ts&... ss) -> void requires basic_shape<Ts...>;
+#+end_src
+
+* Rules of thumb
+
+ - Prefer to use concepts instead of variable templates.
+ - When building up concepts, combine concepts "at the top level".
+ - Be careful with variadic functions...
+
+As with everything in C++:
+
+ - Use concepts: they're awesome compared to the other options
+ - They have some sharp edges
